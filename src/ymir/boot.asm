@@ -8,16 +8,20 @@ SECTION .text
 ;; bootloader
 
 startboot:
+    ;; ASSUME: segment registers all set to 0x00
     mov     sp, 0x7c00      ; start stack at bootloader address
     mov     bp, 0x7c00      ; start base pointer at stack pointer
 
     ; print bootloader identification
     mov     si, ident       ; bootloader identification
-    call    std.outln       ; print message
+    call    std.out
+    call    ok
     
+    ; let user know loader is checking for 64-bit support
+    mov     si, cap64       ; message
+    call    std.out
+
     ; check for 64-bit support
-    mov     si, cap64       ; capability check message
-    call    std.out         ; print message
     mov     eax, 0x80000000 ; extended function support function
     cpuid                   ; load caps into EAX
     cmp     eax, 0x80000001 ; extended processor info function
@@ -25,16 +29,19 @@ startboot:
     mov     eax, 0x80000001 ; extended processor info function
     cpuid                   ; load processor info
     test    edx, 1<<29      ; check LM bit
+
+    ; let user know the result
     jz      .error          ; 64-bit unsupported
-    mov     si, okmsg       ; 64-bit ok
-    call    std.outln
+    call    ok
 
     ; query video modes
     ; select good mode
     
+    ; let user know loader is checking BIOS memory map
+    mov     si, capmem      ; message
+    call    std.out
+
     ; map system memory
-    mov     si, capmem      ; capability memory map message
-    call    std.out         ; print message
     mov     eax, 0xe820     ; query system address map function
     mov     di, free        ; target buffer
     xor     ebx, ebx        ; 0 for first entry
@@ -75,22 +82,63 @@ startboot:
     jne     .next_entry     ; done if 0
     
     .mapped:
-    mov     si, okmsg       ; memory map ok
-    call    std.outln       ; print status
+    ; let user know memory was mapped
+    call    ok
     
-    ; enable a20 line
+    ; let user know loader is checking A20 line
+    mov     si, a20         ; A20 line message
+    call    std.out         ; print message
+    
+    ; check A20 line
+    push    ds              ; preserve
+    push    di              ; preserve
+    
+    cli                     ; disable interrupts during check
+    mov     ax, 0xffff      ; can't set ds directly
+    mov     ds, ax          ; copy value from ax
+    mov     si, 0x0510      ; magic?
+    mov     di, 0x0500      ; magic?
+
+    mov     al, [es:di]     ; preserve value..
+    push    ax              ; ...on stack
+    mov     al, [ds:si]     ; preserve value...
+    push    ax              ; ...on stack
+
+    mov     byte [es:di], 0x00
+    mov     byte [ds:si], 0xff
+    cmp     byte [es:di], 0xff
+
+    pop     ax              ; pop stack...
+    mov     byte [ds:si], al; ...to restore
+    pop     ax              ; pop stack...
+    mov     byte [es:di], al; ...to restore
+    
+    pop     di              ; restore top of memory map
+    pop     ds              ; restore data segment
+    
+    sti                     ; turn interrupts back on before error
+
+    ; let user know result
+    je      .error          ; memory wrapped
+    call    ok
+    
     ; setup GDT
     ; enter long mode
 
     jmp     .halt           ; terminate
 
     .error:
-    mov     si, errmsg      ; something went wrong with last module
-    call    std.outln       ; print error
+    mov     al, '-'         ; something went wrong with last module
+    call    std.outch
     
     .halt:
     cli
     hlt
+
+ok:
+    mov     al, '+'
+    call    std.outch
+    ret
 
 %include "std.asm"
 
@@ -99,8 +147,7 @@ startboot:
 ident:      db  "Ymir v0.0.1",0x00
 cap64:      db  "x86-64",0x00
 capmem:     db  "mmap",0x00
-okmsg:      db  ":ok",0x00
-errmsg:     db  ":error",0x00
+a20:        db  "A20",0x00
 
 times 512 - ($ - $$) db 0x00; fill to 512 bytes with 0
 
@@ -110,7 +157,7 @@ free:                       ; guaranteed free space 0x7e00 - 0x7ffff
 
 ;; definitions
 
-SIG_SMAP    equ 0x0534D4150 ; for memory map requests
+SIG_SMAP    equ 0x0534D4150 ; for memory map requests ('SMAP')
 
 struc MemoryDescriptor
     .address:   resq 1
