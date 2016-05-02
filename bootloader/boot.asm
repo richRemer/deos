@@ -9,8 +9,9 @@ SECTION .text
 
 startboot:
     ;; ASSUME: segment registers all set to 0x00
+    cli                     ; hold off on interrupts while messing with stack
     mov     sp, 0x7c00      ; start stack at bootloader address
-    mov     bp, 0x7c00      ; start base pointer at stack pointer
+    sti                     ; re-enable interrupts
 
     ; print bootloader identification
     mov     si, ident       ; bootloader identification
@@ -149,7 +150,13 @@ cap64:      db  "x86-64",0x00
 capmem:     db  "mmap",0x00
 a20:        db  "A20",0x00
 
-times 512 - ($ - $$) db 0x00; fill to 512 bytes with 0
+;; other data
+
+drive:      db  0x00
+
+;; zero-fill to 512 bytes
+
+times 512 - ($ - $$) db 0x00
 
 ;; end of bootloader
 
@@ -158,6 +165,7 @@ free:                       ; guaranteed free space 0x7e00 - 0x7ffff
 ;; definitions
 
 SIG_SMAP    equ 0x0534D4150 ; for memory map requests ('SMAP')
+STAGE2      equ 0x8000      ; stage 2 bootloader loaded here
 
 struc MemoryDescriptor
     .address:   resq 1
