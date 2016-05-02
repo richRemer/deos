@@ -5,6 +5,7 @@
 
 %include "cpuid.asm"
 %include "bios/boot.asm"
+%include "bios/sys.asm"
 
 SECTION .text
 
@@ -46,13 +47,13 @@ startboot:
     call    std.out
 
     ; map system memory
-    mov     eax, 0xe820     ; query system address map function
-    mov     di, free        ; target buffer
+    mov     eax, BIOS_SYS_QUERYMEM
+    mov     di, FREE_START  ; target buffer
     xor     ebx, ebx        ; 0 for first entry
     mov     [es:di+MemoryDescriptor.acpi], dword 1
     mov     ecx, MemoryDescriptor.size
     mov     edx, SIG_SMAP   ; System Map signature
-    int     0x15            ; fill memory descriptor
+    int     BIOSFN_SYS
     jc      .error          ; unsupported function
     mov     edx, SIG_SMAP   ; might have been clobbered
     cmp     eax, edx        ; success should set EAX to sig
@@ -62,10 +63,10 @@ startboot:
     jmp     .entry          ; begin with first entry
     
     .next_entry:
-    mov     eax, 0xe820     ; query system address map function
+    mov     eax, BIOS_SYS_QUERYMEM
     mov     [es:di+MemoryDescriptor.acpi], dword 1
     mov     ecx, MemoryDescriptor.size
-    int     0x15            ; fill memory descriptor
+    int     BIOSFN_SYS
     jc      .mapped         ; carry flag indicates end of list
     
     .entry:
@@ -163,19 +164,10 @@ times 512 - ($ - $$) db 0x00
 
 ;; end of bootloader
 
-free:                       ; guaranteed free space 0x7e00 - 0x7ffff
+endboot:
 
 ;; definitions
 
-SIG_SMAP    equ 0x0534D4150 ; for memory map requests ('SMAP')
 STAGE2      equ 0x8000      ; stage 2 bootloader loaded here
-
-struc MemoryDescriptor
-    .address:   resq 1
-    .length:    resq 1
-    .type:      resd 1
-    .acpi:      resd 1       ; ACPI 3 extensions
-    .size:
-endstruc
 
 ; https://github.com/reniowood/64-bit-Multi-core-OS/tree/master/bootloader
