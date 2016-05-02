@@ -14,8 +14,8 @@ disk.img: boot.bin
 	parted build/disk.img set 1 boot on
 	dd if=build/boot.bin of=build/disk.img bs=128 count=3 conv=notrunc
 
-boot.bin: boot.asm
-	nasm -o build/boot.bin boot.asm
+boot.bin: src/boot.asm
+	nasm -obuild/boot.bin -Isrc/ src/boot.asm
 
 clean:
 	rm -f build/*

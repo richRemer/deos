@@ -3,8 +3,8 @@
 
 ; Author: Richard Remer
 
-%include "inc/cpuid.asm"
-%include "inc/bios/boot.asm"
+%include "cpuid.asm"
+%include "bios/boot.asm"
 
 SECTION .text
 
