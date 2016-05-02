@@ -1,0 +1,29 @@
+#!/bin/bash -e
+
+disk_size=128M
+boot_start=34
+boot_label=ymir-boot
+os_start=2048
+os_label=os
+os_end=262111
+
+disk_bs=${disk_size##*[0-9]}
+disk_count=${disk_size:0: -${#disk_bs}}
+disk_bs=1$disk_bs
+boot_size=$((os_start-boot_start))
+boot_type=`cat res/ymir-guid`
+os_size=$((os_end-os_start))
+os_type=`cat res/f1stfs-guid`
+
+(
+    echo bs=$disk_bs
+    echo count=$disk_count
+    echo boot_start=$boot_start
+    echo boot_size=$boot_size
+    echo boot_type=$boot_type
+    echo boot_label=ymir-boot
+    echo os_start=2048
+    echo os_size=$os_size
+    echo os_type=$os_type
+    echo os_label=os
+) > build/config
