@@ -3,6 +3,7 @@
 
 ; Author: Richard Remer
 
+%include "inc/cpuid.asm"
 %include "inc/bios/boot.asm"
 
 SECTION .text
@@ -25,13 +26,13 @@ startboot:
     call    std.out
 
     ; check for 64-bit support
-    mov     eax, 0x80000000 ; extended function support function
+    mov     eax, CPUIDFN_HIEXTFN
     cpuid                   ; load caps into EAX
-    cmp     eax, 0x80000001 ; extended processor info function
+    cmp     eax, CPUIDFN_EXTCPU
     jb      .error          ; no extended proc. info means no 64-bit support
-    mov     eax, 0x80000001 ; extended processor info function
+    mov     eax, CPUIDFN_EXTCPU
     cpuid                   ; load processor info
-    test    edx, 1<<29      ; check LM bit
+    test    edx, 1<<CPUID_LM_BIT
 
     ; let user know the result
     jz      .error          ; 64-bit unsupported
