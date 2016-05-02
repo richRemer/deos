@@ -26,4 +26,4 @@ os_type=`cat res/f1stfs-guid`
     echo os_size=$os_size
     echo os_type=$os_type
     echo os_label=os
-) > build/config
+) > build/.config
