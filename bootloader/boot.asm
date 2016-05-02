@@ -3,6 +3,8 @@
 
 ; Author: Richard Remer
 
+%include "inc/bios/boot.asm"
+
 SECTION .text
 
 ;; bootloader
@@ -10,7 +12,7 @@ SECTION .text
 startboot:
     ;; ASSUME: segment registers all set to 0x00
     cli                     ; hold off on interrupts while messing with stack
-    mov     sp, 0x7c00      ; start stack at bootloader address
+    mov     sp, BOOT        ; start stack at bootloader address
     sti                     ; re-enable interrupts
 
     ; print bootloader identification
