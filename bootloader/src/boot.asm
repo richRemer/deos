@@ -3,9 +3,11 @@
 
 ; Author: Richard Remer
 
-%include "cpuid.asm"
 %include "bios/boot.asm"
 %include "bios/sys.asm"
+%include "bios/disk.asm"
+%include "cpuid.asm"
+%include "gpt.asm"
 
 SECTION .text
 
@@ -17,10 +19,33 @@ startboot:
     mov     sp, BOOT        ; start stack at bootloader address
     sti                     ; re-enable interrupts
 
+    ; save boot drive and read GPT header
+    mov     [drive], dl     ; BIOS leaves drive number here
+    mov     ah, BIOS_DISK_READEXT
+    mov     si, dap
+    mov     [dap+DiskAddressPacket.reserved], byte 0
+    mov     [dap+DiskAddressPacket.sectors], word 1 
+    mov     [dap+DiskAddressPacket.dst_offset], word FREE_START
+    mov     [dap+DiskAddressPacket.dst_segment], word 0
+    mov     [dap+DiskAddressPacket.lba_low], dword 1
+    mov     [dap+DiskAddressPacket.lba_high], dword 0
+    int     BIOS_DISK
+
+    ; read partition table
+    mov     ah, BIOS_DISK_READEXT
+    mov     ebx, [FREE_START+GPTHeader.lba_parts]
+    mov     ecx, [FREE_START+GPTHeader.lba_parts+4]
+    mov     [dap+DiskAddressPacket.sectors], word GPT_TABLE_BLOCKS
+    mov     [dap+DiskAddressPacket.lba_low], ebx
+    mov     [dap+DiskAddressPacket.lba_high], ecx
+    int     BIOS_DISK
+
     ; print bootloader identification
     mov     si, ident       ; bootloader identification
     call    std.out
     call    ok
+    
+    ; load next sector
     
     ; let user know loader is checking for 64-bit support
     mov     si, cap64       ; message
@@ -157,6 +182,8 @@ a20:        db  "A20",0x00
 ;; other data
 
 drive:      db  0x00
+dap:        db  DiskAddressPacket.size
+            times DiskAddressPacket.size-1 db 0x00
 
 ;; zero-fill to 512 bytes
 
