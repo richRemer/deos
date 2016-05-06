@@ -31,11 +31,20 @@ startboot:
     mov     [dap+DiskAddressPacket.lba_high], dword 0
     int     BIOS_DISK
 
-    ; read partition table
+    ; calculate size of partition table (assume 512 byte boundary)
+    mov     eax, [FREE_START+GPTHeader.num_parts]
+    mov     ebx, [FREE_START+GPTHeader.part_size]
+    mul     ebx             ; eax,ebx implied
+    shr     eax, 9          ; convert eax to sectors in eax
+    mov     dx, ax          ; used in DAP sent to disk (2-byte field)
+
+    ; read GPT partition table
     mov     ah, BIOS_DISK_READEXT
+    mov     dl, [drive]
     mov     ebx, [FREE_START+GPTHeader.lba_parts]
     mov     ecx, [FREE_START+GPTHeader.lba_parts+4]
-    mov     [dap+DiskAddressPacket.sectors], word GPT_TABLE_BLOCKS
+    mov     [dap+DiskAddressPacket.sectors], dx
+    mov     [dap+DiskAddressPacket.dst_offset], word FREE_START+512
     mov     [dap+DiskAddressPacket.lba_low], ebx
     mov     [dap+DiskAddressPacket.lba_high], ecx
     int     BIOS_DISK
@@ -44,8 +53,6 @@ startboot:
     mov     si, ident       ; bootloader identification
     call    std.out
     call    ok
-    
-    ; load next sector
     
     ; let user know loader is checking for 64-bit support
     mov     si, cap64       ; message
