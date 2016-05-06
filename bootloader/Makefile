@@ -12,7 +12,7 @@ disk.img: boot.bin
 		-b$(os_start) -s$(os_size) -t$(os_type) -l$(os_label) \
 		build/disk.img
 	cgpt boot -i1 build/disk.img -p
-	dd if=build/boot.bin of=build/disk.img bs=128 count=3 conv=notrunc
+	dd if=build/boot.bin of=build/disk.img bs=64 count=7 conv=notrunc
 
 boot.bin: src/boot.asm
 	nasm -obuild/boot.bin -Isrc/ src/boot.asm
