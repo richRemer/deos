@@ -6,8 +6,8 @@
 %include "bios/boot.asm"
 %include "bios/sys.asm"
 %include "bios/disk.asm"
-%include "cpuid.asm"
-%include "gpt.asm"
+%include "cpu/cpuid.asm"
+%include "uefi/gpt.asm"
 
 SECTION .text
 
