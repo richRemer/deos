@@ -177,7 +177,7 @@ ok:
     call    std.outch
     ret
 
-%include "std.asm"
+%include "lib/std.asm"
 
 ;; string data
 
