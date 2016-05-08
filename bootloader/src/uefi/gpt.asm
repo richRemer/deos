@@ -19,3 +19,12 @@ struc GPTHeader
     .crc32_parts:   resd 1
     .padding:
 endstruc
+
+struc GPTPartitionEntry
+    .type_guid      resb 16
+    .guid           resb 16
+    .lba_first      resq 1
+    .lba_last       resq 1
+    .flags          resq 1
+    .utf16name      resw 36
+endstruc
