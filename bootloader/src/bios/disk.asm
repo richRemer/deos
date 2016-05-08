@@ -1,6 +1,6 @@
 ;; Author: Richard Remer
 
-;; constants describing disk BIOS services
+;; constants describing disk BIOS services (INT 13h)
 
 BIOS_DISK           equ 0x13
 BIOS_DISK_RESET     equ 0x00

@@ -1,39 +1,41 @@
 [ORG 0x7c00]
 [BITS 16]
 
-; Author: Richard Remer
+;; Author: Richard Remer
 
 %include "bios/boot.asm"
-%include "bios/sys.asm"
 %include "bios/disk.asm"
-%include "cpu/cpuid.asm"
 %include "uefi/gpt.asm"
 
 SECTION .text
 
-;; bootloader
+;; stage 1 bootloader
 
-startboot:
-    ;; ASSUME: segment registers all set to 0x00
+stage1.begin:
+    ; ASSUME: segment registers all set to 0x00
     cli                     ; hold off on interrupts while messing with stack
-    mov     sp, BOOT        ; start stack at bootloader address
+    mov     sp, BIOS_BOOT   ; start stack at bootloader address
     sti                     ; re-enable interrupts
 
+    ; print bootloader identification
+    mov     si, ident       ; bootloader identification
+    call    outln           ; print message
+    
     ; save boot drive and read GPT header
     mov     [drive], dl     ; BIOS leaves drive number here
     mov     ah, BIOS_DISK_READEXT
     mov     si, dap
     mov     [dap+DiskAddressPacket.reserved], byte 0
     mov     [dap+DiskAddressPacket.sectors], word 1 
-    mov     [dap+DiskAddressPacket.dst_offset], word FREE_START
+    mov     [dap+DiskAddressPacket.dst_offset], word GPT_HEAD
     mov     [dap+DiskAddressPacket.dst_segment], word 0
     mov     [dap+DiskAddressPacket.lba_low], dword 1
     mov     [dap+DiskAddressPacket.lba_high], dword 0
     int     BIOS_DISK
 
     ; calculate size of partition table (assume 512 byte boundary)
-    mov     eax, [FREE_START+GPTHeader.num_parts]
-    mov     ebx, [FREE_START+GPTHeader.part_size]
+    mov     eax, [GPT_HEAD+GPTHeader.num_parts]
+    mov     ebx, [GPT_HEAD+GPTHeader.part_size]
     mul     ebx             ; eax,ebx implied
     shr     eax, 9          ; convert eax to sectors in eax
     mov     dx, ax          ; used in DAP sent to disk (2-byte field)
@@ -41,154 +43,82 @@ startboot:
     ; read GPT partition table
     mov     ah, BIOS_DISK_READEXT
     mov     dl, [drive]
-    mov     ebx, [FREE_START+GPTHeader.lba_parts]
-    mov     ecx, [FREE_START+GPTHeader.lba_parts+4]
+    mov     ebx, [GPT_HEAD+GPTHeader.lba_parts]
+    mov     ecx, [GPT_HEAD+GPTHeader.lba_parts+4]
     mov     [dap+DiskAddressPacket.sectors], dx
-    mov     [dap+DiskAddressPacket.dst_offset], word FREE_START+512
+    mov     [dap+DiskAddressPacket.dst_offset], word GPT_PARTS
     mov     [dap+DiskAddressPacket.lba_low], ebx
     mov     [dap+DiskAddressPacket.lba_high], ecx
     int     BIOS_DISK
 
-    ; print bootloader identification
-    mov     si, ident       ; bootloader identification
-    call    std.out
-    call    ok
-    
-    ; let user know loader is checking for 64-bit support
-    mov     si, cap64       ; message
-    call    std.out
+    ; find stage2 boot partition
+    mov     ecx, [GPT_HEAD+GPTHeader.num_parts]
+    mov     ebx, [GPT_HEAD+GPTHeader.part_size]
+    mov     edx, GPT_PARTS
+checkpart:
+    jcxz    noboot          ; partitions exhausted
 
-    ; check for 64-bit support
-    mov     eax, CPUIDFN_HIEXTFN
-    cpuid                   ; load caps into EAX
-    cmp     eax, CPUIDFN_EXTCPU
-    jb      .error          ; no extended proc. info means no 64-bit support
-    mov     eax, CPUIDFN_EXTCPU
-    cpuid                   ; load processor info
-    test    edx, 1<<CPUID_LM_BIT
+    push    ecx             ; save counter before it gets trashed
+    mov     edi, edx        ; partition GUID
+    mov     esi, stage2guid ; Ymir stage2 GUID
+    mov     ecx, 4          ; 4 dwords makes 16 byte GUID
+    repe    cmpsd           ; compare the two
+    pop     ecx             ; restore counter
 
-    ; let user know the result
-    jz      .error          ; 64-bit unsupported
-    call    ok
+    jz      stage2_load     ; found stage2
 
-    ; query video modes
-    ; select good mode
+    dec     ecx             ; decrement counter
+    jmp     checkpart       ; continue with next partition
     
-    ; let user know loader is checking BIOS memory map
-    mov     si, capmem      ; message
-    call    std.out
+stage2_load:
+    ; find partition size (assumes high dword of LBAs match)
+    mov     ebx, [edx+GPTPartitionEntry.lba_first]
+    mov     ecx, [edx+GPTPartitionEntry.lba_first+4]
+    mov     eax, [edx+GPTPartitionEntry.lba_last+4]
+    cmp     eax, ecx
+    jg      .limit
+    
+    mov     eax, [edx+GPTPartitionEntry.lba_last]
+    sub     eax, ebx
+    inc     eax
+    cmp     eax, 0x7f       ; based on typical BIOS limit
+    jg      .limit
+    jmp     .load
+    
+    .limit:
+    mov     eax, 0x7f       ; based on typical BIOS limit
+    
+    .load:
+    mov     dl, [drive]
+    mov     si, dap
+    mov     [dap+DiskAddressPacket.sectors], ax
+    mov     [dap+DiskAddressPacket.dst_offset], word STAGE2
+    mov     [dap+DiskAddressPacket.dst_segment], word 0
+    mov     [dap+DiskAddressPacket.lba_low], ebx
+    mov     [dap+DiskAddressPacket.lba_high], ecx
+    mov     ah, BIOS_DISK_READEXT
+    int     BIOS_DISK
 
-    ; map system memory
-    mov     eax, BIOS_SYS_QUERYMEM
-    mov     di, FREE_START  ; target buffer
-    xor     ebx, ebx        ; 0 for first entry
-    mov     [es:di+MemoryDescriptor.acpi], dword 1
-    mov     ecx, MemoryDescriptor.size
-    mov     edx, SIG_SMAP   ; System Map signature
-    int     BIOSFN_SYS
-    jc      .error          ; unsupported function
-    mov     edx, SIG_SMAP   ; might have been clobbered
-    cmp     eax, edx        ; success should set EAX to sig
-    jne     .error          ; failed to map memory
-    test    ebx, ebx        ; number of entries - 1
-    je      .error          ; single entry; not useful
-    jmp     .entry          ; begin with first entry
-    
-    .next_entry:
-    mov     eax, BIOS_SYS_QUERYMEM
-    mov     [es:di+MemoryDescriptor.acpi], dword 1
-    mov     ecx, MemoryDescriptor.size
-    int     BIOSFN_SYS
-    jc      .mapped         ; carry flag indicates end of list
-    
-    .entry:
-    jcxz    .skip_entry     ; skip if length is 0
-    cmp     cl, MemoryDescriptor.acpi
-    jbe     .noext          ; no ACPI extension info
-    test    byte [es:di+MemoryDescriptor.acpi], 1
-    je      .skip_entry     ; ignore bit is set
-    
-    .noext:
-    mov     ecx, [es:di+8]  ; lower 32 bits of region length
-    or      ecx, [es:di+12] ; with upper 32 bits of region length
-    js      .skip_entry     ; 0 address
-    add     di, MemoryDescriptor.size
-    
-    .skip_entry:
-    test    ebx, ebx        ; next entry identifier
-    jne     .next_entry     ; done if 0
-    
-    .mapped:
-    ; let user know memory was mapped
-    call    ok
-    
-    ; let user know loader is checking A20 line
-    mov     si, a20         ; A20 line message
-    call    std.out         ; print message
-    
-    ; check A20 line
-    push    ds              ; preserve
-    push    di              ; preserve
-    
-    cli                     ; disable interrupts during check
-    mov     ax, 0xffff      ; can't set ds directly
-    mov     ds, ax          ; copy value from ax
-    mov     si, 0x0510      ; magic?
-    mov     di, 0x0500      ; magic?
+    ; begin stage2
+    jmp     STAGE2
 
-    mov     al, [es:di]     ; preserve value..
-    push    ax              ; ...on stack
-    mov     al, [ds:si]     ; preserve value...
-    push    ax              ; ...on stack
+noboot:
+    mov     si, nobootpart  ; error message
+    call    outln           ; print message
+    cli                     ; disable interrupts so nothing wonky happens
+    hlt                     ; halt machine
 
-    mov     byte [es:di], 0x00
-    mov     byte [ds:si], 0xff
-    cmp     byte [es:di], 0xff
-
-    pop     ax              ; pop stack...
-    mov     byte [ds:si], al; ...to restore
-    pop     ax              ; pop stack...
-    mov     byte [es:di], al; ...to restore
-    
-    pop     di              ; restore top of memory map
-    pop     ds              ; restore data segment
-    
-    sti                     ; turn interrupts back on before error
-
-    ; let user know result
-    je      .error          ; memory wrapped
-    call    ok
-    
-    ; setup GDT
-    ; enter long mode
-
-    jmp     .halt           ; terminate
-
-    .error:
-    mov     al, '-'         ; something went wrong with last module
-    call    std.outch
-    
-    .halt:
-    cli
-    hlt
-
-ok:
-    mov     al, '+'
-    call    std.outch
-    ret
-
-%include "lib/std.asm"
+%include "ymir/console.asm"
 
 ;; string data
 
 ident:      db  "Ymir v0.0.1",0x00
-cap64:      db  "x86-64",0x00
-capmem:     db  "mmap",0x00
-a20:        db  "A20",0x00
+nobootpart: db  "No boot partition",0x00
 
 ;; other data
 
 drive:      db  0x00
+stage2guid: dq  0x4125993c16903ab3, 0xd1118457e9487dbf
 dap:        db  DiskAddressPacket.size
             times DiskAddressPacket.size-1 db 0x00
 
@@ -196,12 +126,14 @@ dap:        db  DiskAddressPacket.size
 
 times 512 - ($ - $$) db 0x00
 
-;; end of bootloader
+;; end of stage1
 
-endboot:
+stage1.end:
 
 ;; definitions
 
-STAGE2      equ 0x8000      ; stage 2 bootloader loaded here
+GPT_HEAD    equ BIOS_FREE       ; GPT header loaded here
+GPT_PARTS   equ BIOS_FREE+512   ; GPT partitions loaded here (temporarily)
+STAGE2      equ BIOS_FREE+512   ; stage2 bootloader loaded here
 
 ; https://github.com/reniowood/64-bit-Multi-core-OS/tree/master/bootloader

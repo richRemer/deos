@@ -9,7 +9,7 @@ disk.img: boot.bin stage2.bin
 	cgpt add -b$(os_start) -s$(os_size) -t$(os_type) -l$(os_label) build/disk.img
 	cgpt boot -i1 build/disk.img -p
 	dd if=build/boot.bin of=build/disk.img bs=1 count=445 conv=notrunc
-	dd if=build/stage2.bin of=build/disk.img bs=512 seek=$(os_start) conv=notrunc
+	dd if=build/stage2.bin of=build/disk.img bs=512 seek=$(boot_start) conv=notrunc
 
 boot.bin: src/boot.asm
 	nasm -obuild/boot.bin -Isrc/ src/boot.asm

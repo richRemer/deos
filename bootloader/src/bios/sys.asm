@@ -1,8 +1,8 @@
 ;; Author: Richard Remer
 
-;; constants describing system BIOS services
+;; constants describing system BIOS services (INT 15h)
 
-BIOSFN_SYS          equ 0x15
+BIOS_SYS            equ 0x15
 BIOS_SYS_QUERYMEM   equ 0xe820
 
 ;; for memory map requests ('SMAP' string)
