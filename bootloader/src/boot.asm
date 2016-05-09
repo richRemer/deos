@@ -5,6 +5,7 @@
 
 %include "bios/boot.asm"
 %include "bios/disk.asm"
+%include "bios/video.asm"
 %include "uefi/gpt.asm"
 
 SECTION .text
@@ -17,12 +18,20 @@ stage1.begin:
     mov     sp, BIOS_BOOT   ; start stack at bootloader address
     sti                     ; re-enable interrupts
 
+    ; save boot drive
+    mov     [drive], dl     ; BIOS leaves drive number here
+
+    ; set video mode
+    mov     ah, BIOS_VIDEO_MODE
+    mov     al, 0x03        ; 80x25 16 colors; 8 pages
+    int     BIOS_VIDEO
+
     ; print bootloader identification
     mov     si, ident       ; bootloader identification
     call    outln           ; print message
     
-    ; save boot drive and read GPT header
-    mov     [drive], dl     ; BIOS leaves drive number here
+    ; read GPT header
+    mov     dl, [drive]     ; restore boot drive
     mov     ah, BIOS_DISK_READEXT
     mov     si, dap
     mov     [dap+DiskAddressPacket.reserved], byte 0
@@ -108,7 +117,34 @@ noboot:
     cli                     ; disable interrupts so nothing wonky happens
     hlt                     ; halt machine
 
-%include "ymir/console.asm"
+;; utility functions for printing strings
+
+;; out(zstring:SI)
+out:
+    lodsb                   ; grab char from SI
+    or      al, al          ; test character
+    jz      .done           ; bail on nul
+    call    outch           ; print character
+    jmp     out             ; continue with next character
+    
+    .done:
+    ret
+
+;; outln(zstring:SI)
+outln:
+    call    out
+    mov     al, 0x0d        ; CR
+    call    outch
+    mov     al, 0x0a        ; LF
+    call    outch
+    ret
+
+;; outch(char:AL)
+outch:
+    mov     ah, BIOS_VIDEO_TTYOUT
+    mov     bx, 0x0000      ; page 0 + attributes
+    int     BIOS_VIDEO      ; call BIOS
+    ret
 
 ;; string data
 
