@@ -24,38 +24,7 @@ stage2.begin:
     mov     si, memok       ; success message
     call    outln
 
-    mov     si, BIOS_BOOT   ; memory map loaded here
-.showmem:
-    mov     eax, [si]       ; low dword into EAX
-    mov     ebx, [si+4]     ; high dword into EBX
-    call    outq            ; print start address of memory chunk
-    
-    mov     al, '-'         ; range of memory
-    call    outch
-
-    mov     eax, [si]       ; low dword into EAX
-    mov     ebx, [si+4]     ; high dword into EBX    
-    add     eax, [si+MemoryDescriptor.length]
-    jnc     .nocarry        ; check if need to add carry
-    inc     ebx             ; carry into EBX
-.nocarry:
-    add     ebx, [si+MemoryDescriptor.length+4]
-    call    outq            ; print end address of memory chunk
-    
-    mov     al, '/'         ; memory type
-    call    outch
-    
-    mov     eax, [si+MemoryDescriptor.type]
-    call    outd            ; print page type (1-avail)
-    
-    mov     al, 0x0d        ; CR
-    call    outch
-    mov     al, 0x0a        ; LF
-    call    outch
-
-    add     si, MemoryDescriptor.size
-    cmp     si, di          ; DI points to end of list
-    jne     .showmem        ; show next chunk
+    call    showmem         ; display the memory map
 
     ; query video modes
     ; select good mode
@@ -207,6 +176,43 @@ mapmem:
     stc                             ; set CF for failure
     
     .done:
+    ret
+
+;; showmem()
+;; Display the memory map
+showmem:
+    mov     si, BIOS_BOOT   ; memory map loaded here
+.chunk:
+    mov     eax, [si]       ; low dword into EAX
+    mov     ebx, [si+4]     ; high dword into EBX
+    call    outq            ; print start address of memory chunk
+    
+    mov     al, '-'         ; range of memory
+    call    outch
+
+    mov     eax, [si]       ; low dword into EAX
+    mov     ebx, [si+4]     ; high dword into EBX    
+    add     eax, [si+MemoryDescriptor.length]
+    jnc     .nocarry        ; check if need to add carry
+    inc     ebx             ; carry into EBX
+.nocarry:
+    add     ebx, [si+MemoryDescriptor.length+4]
+    call    outq            ; print end address of memory chunk
+    
+    mov     al, '/'         ; memory type
+    call    outch
+    
+    mov     eax, [si+MemoryDescriptor.type]
+    call    outb            ; print page type (1-avail)
+    
+    mov     al, 0x0d        ; CR
+    call    outch
+    mov     al, 0x0a        ; LF
+    call    outch
+
+    add     si, MemoryDescriptor.size
+    cmp     si, di          ; DI points to end of list
+    jne     .chunk          ; show next chunk
     ret
 
 ;; import utility functions
