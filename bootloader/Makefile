@@ -1,5 +1,3 @@
-include build/.config
-
 all: build/boot.bin build/stage2.bin
 
 build/boot.bin: src/boot.asm

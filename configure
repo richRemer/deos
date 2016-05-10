@@ -1,5 +1,13 @@
 #!/bin/bash -e
 
+# run module configures
+find `dirname $0` -mindepth 2 -maxdepth 2 -name configure -type f -executable \
+    -exec {} "$@" \;
+
+##########################
+# OS image configuration #
+##########################
+
 dir=`dirname $0`
 
 disk_size=128M
@@ -28,4 +36,4 @@ os_type=`cat $dir/res/f1stfs-guid`
     echo os_size=$os_size
     echo os_type=$os_type
     echo os_label=os
-) > $dir/build/.config
+) > build/.config
