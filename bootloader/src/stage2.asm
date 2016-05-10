@@ -188,6 +188,9 @@ mapmem:
     mov     ecx, [es:di+8]          ; lower 32 bits of region length
     or      ecx, [es:di+12]         ; with upper 32 bits of region length
     jz      .skip_entry             ; skip entries pointing at 0x00
+    mov     ecx, [es:di+MemoryDescriptor.type]
+    cmp     ecx, 1                  ; 1 - usable memory
+    jnz     .skip_entry             ; skip non-usable memory
     add     di, MemoryDescriptor.size
     
     .skip_entry:
