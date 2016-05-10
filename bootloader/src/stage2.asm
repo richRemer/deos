@@ -34,33 +34,18 @@ stage2.begin:
 
     ; query video modes
     ; select good mode
-    
-
-
-    
-    
     ; setup GDT
     ; enter long mode
 
-    jmp     halt            ; terminate
+    jmp     .halt           ; terminate
 
     .fail:
     call    outln           ; SI expected to contain error message
+
+    .halt:
     cli                     ; stop any interrupting funny business
     hlt                     ; halt CPU
 
-ok:
-    mov     si, okmsg
-    call    outln
-    ret
-
-fail:
-    mov     si, failmsg
-    call    outln
-    
-halt:
-    cli
-    hlt
 
 ;; System Diagnostic Checks ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
