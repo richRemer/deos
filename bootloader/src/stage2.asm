@@ -18,6 +18,12 @@ stage2.begin:
     mov     si, lmok        ; success message
     call    outln
 
+    mov     si, a20fail     ; set error message for next check
+    call    checkA20        ; check if A20 line is enabled
+    jc      .fail           ; bail if A20 line not detected
+    mov     si, a20ok       ; success message
+    call    outln
+
     mov     si, memfail     ; set error message for next step
     call    mapmem          ; map system memory
     jc      .fail           ; bail if anything goes wrong
@@ -32,42 +38,6 @@ stage2.begin:
 
 
     
-    ; let user know loader is checking A20 line
-    mov     si, a20         ; message address
-    call    out             ; print message
-    
-    ; check A20 line
-    push    ds              ; preserve
-    push    di              ; preserve
-    
-    cli                     ; disable interrupts during check
-    mov     ax, 0xffff      ; can't set ds directly
-    mov     ds, ax          ; copy value from ax
-    mov     si, 0x0510      ; magic?
-    mov     di, 0x0500      ; magic?
-
-    mov     al, [es:di]     ; preserve value..
-    push    ax              ; ...on stack
-    mov     al, [ds:si]     ; preserve value...
-    push    ax              ; ...on stack
-
-    mov     byte [es:di], 0x00
-    mov     byte [ds:si], 0xff
-    cmp     byte [es:di], 0xff
-
-    pop     ax              ; pop stack...
-    mov     byte [ds:si], al; ...to restore
-    pop     ax              ; pop stack...
-    mov     byte [es:di], al; ...to restore
-    
-    pop     di              ; restore top of memory map
-    pop     ds              ; restore data segment
-    
-    sti                     ; turn interrupts back on before error
-
-    ; let user know result
-    je      fail            ; memory wrapped
-    call    ok
     
     ; setup GDT
     ; enter long mode
@@ -111,6 +81,49 @@ checkLM:
     jmp     .done                   ; and return
     
     .supported:
+    clc                             ; clear CF to indicate success
+    
+    .done:
+    ret
+
+
+;; checkA20() -> CF if not enabled
+;; Check if A20 line is enabled
+checkA20:
+    push    ds                      ; preserve
+    push    di                      ; preserve
+    
+    cli                             ; disable interrupts during check
+    mov     ax, 0xffff              ; can't set ds directly
+    mov     ds, ax                  ; copy value from ax
+    mov     si, 0x0510              ; magic?
+    mov     di, 0x0500              ; magic?
+
+    mov     al, [es:di]             ; preserve value..
+    push    ax                      ; ...on stack
+    mov     al, [ds:si]             ; preserve value...
+    push    ax                      ; ...on stack
+
+    mov     byte [es:di], 0x00
+    mov     byte [ds:si], 0xff
+    cmp     byte [es:di], 0xff
+
+    pop     ax                      ; pop stack...
+    mov     byte [ds:si], al        ; ...to restore
+    pop     ax                      ; pop stack...
+    mov     byte [es:di], al        ; ...to restore
+    
+    pop     di                      ; restore top of memory map
+    pop     ds                      ; restore data segment
+    
+    sti                             ; turn interrupts back on before error
+
+    ; let user know result
+    jne     .enabled                ; memory did not wrap
+    stc                             ; set CF to indicate a problem
+    jmp     .done                   ; and return
+    
+    .enabled:
     clc                             ; clear CF to indicate success
     
     .done:
@@ -178,6 +191,7 @@ mapmem:
     .done:
     ret
 
+
 ;; showmem()
 ;; Display the memory map
 showmem:
@@ -223,12 +237,13 @@ showmem:
 
 okmsg:      db  " - ok",0x00
 failmsg:    db  " - failed",0x00
-a20:        db  "A20 line",0x00
 
 lmok:       db  "64-bit Long Mode support detected",0x00
 lmfail:     db  "CPU does not support 64-bit Long Mode",0x00
 memok:      db  "BIOS system memory map complete",0x00
 memfail:    db  "Failed to map system memory using BIOS",0x00
+a20ok:      db  "A20 line is enabled",0x00
+a20fail:    db  "A20 line is not enabled",0x00
 
 ;; definitions
 
