@@ -24,7 +24,38 @@ stage2.begin:
     mov     si, memok       ; success message
     call    outln
 
+    mov     si, BIOS_BOOT   ; memory map loaded here
+.showmem:
+    mov     eax, [si]       ; low dword into EAX
+    mov     ebx, [si+4]     ; high dword into EBX
+    call    outq            ; print start address of memory chunk
+    
+    mov     al, '-'         ; range of memory
+    call    outch
 
+    mov     eax, [si]       ; low dword into EAX
+    mov     ebx, [si+4]     ; high dword into EBX    
+    add     eax, [si+MemoryDescriptor.length]
+    jnc     .nocarry        ; check if need to add carry
+    inc     ebx             ; carry into EBX
+.nocarry:
+    add     ebx, [si+MemoryDescriptor.length+4]
+    call    outq            ; print end address of memory chunk
+    
+    mov     al, '/'         ; memory type
+    call    outch
+    
+    mov     eax, [si+MemoryDescriptor.type]
+    call    outd            ; print page type (1-avail)
+    
+    mov     al, 0x0d        ; CR
+    call    outch
+    mov     al, 0x0a        ; LF
+    call    outch
+
+    add     si, MemoryDescriptor.size
+    cmp     si, di          ; DI points to end of list
+    jne     .showmem        ; show next chunk
 
     ; query video modes
     ; select good mode
@@ -138,7 +169,7 @@ mapmem:
     jmp     .entry                  ; begin with first entry
     
     .next_entry:
-    mov     eax, BIOS_SYS_QUERYMEM  ; set BIOS syste function
+    mov     eax, BIOS_SYS_QUERYMEM  ; set BIOS system function
     mov     [es:di+MemoryDescriptor.acpi], dword 1
     mov     ecx, MemoryDescriptor.size
     int     BIOS_SYS                ; get next entry (tracked in EBX)
@@ -156,15 +187,17 @@ mapmem:
     .noext:
     mov     ecx, [es:di+8]          ; lower 32 bits of region length
     or      ecx, [es:di+12]         ; with upper 32 bits of region length
-    js      .skip_entry             ; skip entries pointing at 0x00
+    jz      .skip_entry             ; skip entries pointing at 0x00
     add     di, MemoryDescriptor.size
     
     .skip_entry:
     test    ebx, ebx                ; next entry identifier
-    jne     .next_entry             ; done on 0
+    jnz     .next_entry             ; continue to 0
+    sub     di, MemoryDescriptor.size
     
     .mapped:
     clc                             ; clear CF for success
+    add     di, MemoryDescriptor.size
     jmp     .done                   ; return
     
     .fail:
