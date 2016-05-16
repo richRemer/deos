@@ -3,6 +3,7 @@
 
 ;; Author: Richard Remer
 
+%include "ymir.asm"
 %include "bios/boot.asm"
 %include "bios/disk.asm"
 %include "bios/video.asm"
@@ -14,12 +15,10 @@ SECTION .text
 
 stage1.begin:
     ; ASSUME: segment registers all set to 0x00
-    cli                     ; hold off on interrupts while messing with stack
-    mov     sp, BIOS_BOOT   ; start stack at bootloader address
-    sti                     ; re-enable interrupts
+    mov     sp, STACK_TOP   ; 29.75 KiB available here
 
-    ; save boot drive
-    mov     [drive], dl     ; BIOS leaves drive number here
+    ; save boot drive left in DL by BIOS
+    mov     [boot.record+BootRecord.boot_drive], dl
 
     ; set video mode
     mov     ah, BIOS_VIDEO_MODE
@@ -31,7 +30,7 @@ stage1.begin:
     call    outln           ; print message
     
     ; read GPT header
-    mov     dl, [drive]     ; restore boot drive
+    mov     dl, [boot.record+BootRecord.boot_drive]
     mov     ah, BIOS_DISK_READEXT
     mov     si, dap
     mov     [dap+DiskAddressPacket.reserved], byte 0
@@ -51,7 +50,7 @@ stage1.begin:
 
     ; read GPT partition table
     mov     ah, BIOS_DISK_READEXT
-    mov     dl, [drive]
+    mov     dl, [boot.record+BootRecord.boot_drive]
     mov     ebx, [GPT_HEAD+GPTHeader.lba_parts]
     mov     ecx, [GPT_HEAD+GPTHeader.lba_parts+4]
     mov     [dap+DiskAddressPacket.sectors], dx
@@ -98,7 +97,7 @@ stage2_load:
     mov     eax, 0x7f       ; based on typical BIOS limit
     
     .load:
-    mov     dl, [drive]
+    mov     dl, [boot.record+BootRecord.boot_drive]
     mov     si, dap
     mov     [dap+DiskAddressPacket.sectors], ax
     mov     [dap+DiskAddressPacket.dst_offset], word STAGE2
@@ -153,23 +152,21 @@ nobootpart: db  "No boot partition",0x00
 
 ;; other data
 
-drive:      db  0x00
 stage2guid: dq  0x4125993c16903ab3, 0xd1118457e9487dbf
 dap:        db  DiskAddressPacket.size
             times DiskAddressPacket.size-1 db 0x00
 
-;; zero-fill to 512 bytes
+;; zero-fill to just before boot record ending at 512 bytes 
 
-times 512 - ($ - $$) db 0x00
+times 512 - BootRecord.size - ($ - $$) db 0x00
+
+;; boot record extends standard MBR
+
+boot.record:
+
+times BootRecord.size db 0x00
 
 ;; end of stage1
 
 stage1.end:
 
-;; definitions
-
-GPT_HEAD    equ BIOS_FREE       ; GPT header loaded here
-GPT_PARTS   equ BIOS_FREE+512   ; GPT partitions loaded here (temporarily)
-STAGE2      equ BIOS_FREE+512   ; stage2 bootloader loaded here
-
-; https://github.com/reniowood/64-bit-Multi-core-OS/tree/master/bootloader

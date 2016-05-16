@@ -47,7 +47,7 @@ stage2.begin:
     hlt                     ; halt CPU
 
 
-;; System Diagnostic Checks ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; checkLM() -> CF if unsupported
 ;; Check for Long Mode (64-bit) support
@@ -214,14 +214,17 @@ showmem:
     jne     .chunk          ; show next chunk
     ret
 
+
+;; pagemem() -> CF if anything goes wrong
+;; Build page tables for memory map
+pagemem:
+    ret
+
 ;; import utility functions
 
-%include "ymir/console.asm"
+%include "console.asm"
 
 ;; string data
-
-okmsg:      db  " - ok",0x00
-failmsg:    db  " - failed",0x00
 
 lmok:       db  "64-bit Long Mode support detected",0x00
 lmfail:     db  "CPU does not support 64-bit Long Mode",0x00
@@ -230,6 +233,17 @@ memfail:    db  "Failed to map system memory using BIOS",0x00
 a20ok:      db  "A20 line is enabled",0x00
 a20fail:    db  "A20 line is not enabled",0x00
 
+;; other data
+
+idt_desc:
+    .limit:     dw 0x0000
+    .reserved:  dw 0x0000
+    .base:      dd 0x00000000
+    .size:
+
 ;; definitions
 
-STAGE2      equ BIOS_FREE+512   ;; stage2 bootloader loaded here
+STAGE2          equ BIOS_FREE+512   ;; stage2 bootloader loaded here
+PAGE_PRESENT    equ 1<<0            ;; page present flag
+PAGE_WRITABLE   equ 1<<1            ;; page writable flag
+

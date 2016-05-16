@@ -1,6 +1,12 @@
 ;; Author: Richard Remer
 
+;; GPT disk definitions
+
+%ifndef _GPT_ASM
+%define _GPT_ASM
+
 GPT_TABLE_BLOCKS    equ 32
+MBR_START           equ 0x1be
 
 struc GPTHeader
     .sig:           resq 1
@@ -21,10 +27,18 @@ struc GPTHeader
 endstruc
 
 struc GPTPartitionEntry
-    .type_guid      resb 16
-    .guid           resb 16
-    .lba_first      resq 1
-    .lba_last       resq 1
-    .flags          resq 1
-    .utf16name      resw 36
+    .type_guid:     resb 16
+    .guid:          resb 16
+    .lba_first:     resq 1
+    .lba_last:      resq 1
+    .flags:         resq 1
+    .utf16name:     resw 36
+    .size:
 endstruc
+
+struc MBRPartitionEntry
+    .reserved:      resb 16
+    .size:
+endstruc
+
+%endif

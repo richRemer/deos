@@ -2,6 +2,9 @@
 
 ;; constants describing video BIOS services (INT 10h)
 
+%ifndef _VIDEO_ASM
+%define _VIDEO_ASM
+
 BIOS_VIDEO          equ 0x10
 BIOS_VIDEO_MODE     equ 0x00
 BIOS_VIDEO_CURSOR   equ 0x01
@@ -21,3 +24,4 @@ BIOS_VIDEO_TTYOUT   equ 0x0e
 BIOS_VIDEO_GETMODE  equ 0x0f
 BIOS_VIDEO_OUT      equ 0x13
 
+%endif

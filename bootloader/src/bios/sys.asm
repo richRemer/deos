@@ -2,6 +2,9 @@
 
 ;; constants describing system BIOS services (INT 15h)
 
+%ifndef _SYS_ASM
+%define _SYS_ASM
+
 BIOS_SYS            equ 0x15
 BIOS_SYS_QUERYMEM   equ 0xe820
 
@@ -18,3 +21,4 @@ struc MemoryDescriptor
     .size:
 endstruc
 
+%endif
