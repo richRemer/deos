@@ -1,6 +1,7 @@
 ALLOC_FREE          equ 0x00    ; free space
 ALLOC_ALLOC         equ 0x01    ; allocation index
 ALLOC_DATA          equ 0x02    ; data block
+ALLOC_JOURNAL       equ 0x03    ; write here, record elsewhere
 ALLOC_PRIMARY       equ 0xff    ; primary allocation index
 
 struc AllocationIndex
@@ -17,8 +18,29 @@ struc AllocationEntry
     .size:
 endstruc
 
+struc FileStream
+    .allocations:               ; point at sequential allocations for stream
+endstruc
+
 ; start with disk of raw space
 ; write allocation index including identity record
 ; split remaining space into free space allocations
 
+; 16 GiB raw space
+; | 4K(0xff/3) allocation index mapping 16 GiB
+; | 4K(0x00/3) free space
+; | 8K(0x00/4) free space
+; | 16K(0x00/5) free space
+; | ...
+; | 2G(0x00/22) free space
+; | 4G(0x00/23) free space
+; | 8G(0x00/24) free space
+
+
+; {current_user} uses {foo_bin} to open {disk_space}
+; carve out a journal from the free space (1 GiB default? based on disk?)
+; carve out a 512 B allocation from the free space
+; 
+
+; write a stream of allocations, last allocation points to next block of allocations
 ; 
