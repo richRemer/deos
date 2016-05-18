@@ -1,10 +1,24 @@
-ALLOC_FREE        equ 0       ; free space
-ALLOC_ALLOC       equ 1       ; allocation index
+ALLOC_FREE          equ 0x00    ; free space
+ALLOC_ALLOC         equ 0x01    ; allocation index
+ALLOC_DATA          equ 0x02    ; data block
+ALLOC_PRIMARY       equ 0xff    ; primary allocation index
 
 struc AllocationIndex
-    .alloc_size:  resb 1      ; size = 512 << .alloc_size (only need lower 5 bits)
-    .type:        resb 1
-    .reserved2:   resw 1
-    .reserved3:   resd 1
+    .entries:       resb ...    ; depends on size of allocation index
     .size:
 endstruc
+
+struc AllocationEntry
+    .alloc_size:    resb 1      ; size = 512 << .alloc_size (only need lower 5 bits)
+    .type:          resb 1
+    .reserved2:     resw 1
+    .reserved3:     resd 1
+    .lba:           resq 1      ; LBA of allocation
+    .size:
+endstruc
+
+; start with disk of raw space
+; write allocation index including identity record
+; split remaining space into free space allocations
+
+; 
