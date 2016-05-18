@@ -2,7 +2,8 @@ DeOS
 ====
 
 **program**: executable  
-**application**: programs tied together (or perhaps role of program)
+**application**: role of program  
+**user app**: applications tied together
 
 #### Practical Example
  * acme_doohicky **program** with file_select **application**
