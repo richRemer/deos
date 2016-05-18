@@ -1,7 +1,7 @@
 DeOS
 ====
 
-**program**: executable 
+**program**: executable  
 **application**: programs tied together (or perhaps role of program)
 
 #### Practical Example
