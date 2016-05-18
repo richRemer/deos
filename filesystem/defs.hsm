@@ -1,0 +1,10 @@
+ALLOC_FREE        equ 0       ; free space
+ALLOC_ALLOC       equ 1       ; allocation index
+
+struc AllocationIndex
+    .alloc_size:  resb 1      ; size = 512 << .alloc_size (only need lower 5 bits)
+    .type:        resb 1
+    .reserved2:   resw 1
+    .reserved3:   resd 1
+    .size:
+endstruc
